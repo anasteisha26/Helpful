@@ -17,11 +17,11 @@ column and valuetoreplace should be enclosed in quotes.
 
 
 
-def concat_categories(df, column):
+def concat_categories(df, column, value_to_insert):
     """
     Shrinking categories
     """
     top_list = []
     for i in range(int(input("How many groups you want to keep except 'other'?"))):
         top_list.append(str(input("Write the category name:")))
-    df[column] = df[column].where(df[column].isin(top_list), 'other') 
+    df[column] = df[column].where(df[column].isin(top_list), value_to_insert) 
