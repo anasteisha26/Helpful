@@ -1,0 +1,16 @@
+def impute(df, column, valuetoreplace):
+"""
+You pass 3 arguments: the data frame, the desired column, and the valut you would like to impute proportionally. 
+This function counts the frequency of occuremcies and imputes accordingly & randomly. When defining arguments, 
+column and valuetoreplace should be enclosed in quotes.
+"""
+    mask = df[column] == valuetoreplace
+    valid = df.loc[~mask, column]                 
+    
+    counts = Counter(valid)
+    total_count = sum(counts.values())
+    probabilities = [counts[i] / total_count for i in counts.keys()]
+
+    df.loc[mask, column] = np.random.choice(
+        list(counts.keys()), size=mask.sum(), p=probabilities
+)
