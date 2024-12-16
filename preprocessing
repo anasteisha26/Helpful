@@ -1,0 +1,124 @@
+import pandas as pd
+import numpy as np
+from collections import Counter
+
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter, YearLocator
+import seaborn as sns
+
+import sklearn
+from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score, roc_auc_score, confusion_matrix, roc_curve
+
+def impute(df, column, valuetoreplace):
+    """
+    3 arguments are required: the data frame, the column, and the value you would like to impute proportionally. 
+    This function counts the frequency of occurencies and imputes accordingly & randomly.
+    """
+    mask = df[column] == valuetoreplace
+    valid = df.loc[~mask, column]                 
+    
+    counts = Counter(valid)
+    total_count = sum(counts.values())
+    probabilities = [counts[i] / total_count for i in counts.keys()]
+
+    df.loc[mask, column] = np.random.choice(
+        list(counts.keys()), size=mask.sum(), p=probabilities
+)
+
+def concat_cats(df, column, amount, value_to_insert):
+    """
+    The function removes categories with very few values belonging to it, replacing it with the specified category, for instance, "Other".
+    You should specify df, column, amount of categories to hold, and the value with which smaller categories will be replaced.
+    """
+    top_list = df[column].value_counts().head(amount).index.to_list()
+    df[column] = df[column].where(df[column].isin(top_list), value_to_insert) 
+
+def all_people_per_month(year, month):
+    """
+    Returns the amount of unique people of the specified month and year.
+    """
+    count = df[(df['year'] == year) & (df['month'] == month)]['id'].nunique()
+    
+    return count
+
+def all_people_per_year(year):
+    """
+    Returns an array of 12 values, each representing the amount of people in corresponding month.
+    """
+    all_people = []
+    
+    for month in range(1, 13):
+        count = all_people_per_month(year, month)
+        all_people.append(count)
+    
+    return all_people 
+
+def get_aggregated_dataset(transactions_df, customers_df, people_ids_year, start_date, end_date):
+
+    """
+    "start_date" and "end_date" define the borders of the history. We might need aggregations only for the last 2 years, or between 2 specific dates.
+    """
+    
+    cs = customers_df.copy()
+    
+    if end_year = 'now':
+        ts = transactions_df.copy()
+        ts = ts[ts['date'] >= start_date].copy()
+    else:
+        ts = transactions_df.copy()
+        ts = ts[(ts['date'] >= start_date) & (ts['date'] <= end_date)].copy()
+        
+
+    agg = ts.groupby('id').agg(
+        first_transaction_appeal=('appeal', 'first'),
+        first_transaction_date=('transaction_date', 'first'),
+        first_transaction_designation=('designation', 'first'),
+        last_transaction_appeal=('appeal', 'last'),
+        last_transaction_date=('transaction_date', 'last'),
+        last_transaction_designation=('designation', 'last'),
+        first_transaction_amount=('amount', 'first'),
+        largest_transaction_amount=('amount', 'max'),
+        last_transaction_amount=('amount', 'last'),
+        average_donation_amount=('amount', 'mean'),
+        largest_transaction_idx=('amount', 'idxmax'),
+        lifetime_transaction_count=('id', 'count')
+    ).reset_index()
+    
+    agg['largest_transaction_date'] = ts.loc[agg['largest_transaction_idx'], 'transaction_date'].values
+    aggregated_df = agg.drop(columns=['largest_transaction_idx'])
+                              
+    return aggregated_df
+
+
+def transcribe_time_columns(df):
+
+    """
+    Since the model doesn't really understand dates, they need to be periodical.
+    """
+    
+    for date_col in ['first_transaction_date', 'last_transaction_date', 'largest_transaction_date']:
+        df[f'{date_col}_year'] = df[date_col].dt.year
+        df[f'{date_col}_month'] = df[date_col].dt.month
+        df[f'{date_col}_day'] = df[date_col].dt.day
+        df[f'{date_col}_day_of_week'] = df[date_col].dt.dayofweek  
+        df[f'{date_col}_quarter'] = df[date_col].dt.quarter
+        df[f'{date_col}_is_weekend'] = (df[date_col].dt.dayofweek >= 5).astype(int) 
+             
+        df[f'{date_col}_month_sin'] = np.sin(2 * np.pi * df[f'{date_col}_month'] / 12)
+        df[f'{date_col}_month_cos'] = np.cos(2 * np.pi * df[f'{date_col}_month'] / 12)
+        
+        df[f'{date_col}_day_sin'] = np.sin(2 * np.pi * df[f'{date_col}_day'] / 31)
+        df[f'{date_col}_day_cos'] = np.cos(2 * np.pi * df[f'{date_col}_day'] / 31)
+        
+        df[f'{date_col}_day_of_week_sin'] = np.sin(2 * np.pi * df[f'{date_col}_day_of_week'] / 7)
+        df[f'{date_col}_day_of_week_cos'] = np.cos(2 * np.pi * df[f'{date_col}_day_of_week'] / 7)
+        
+        df[f'{date_col}_quarter_sin'] = np.sin(2 * np.pi * df[f'{date_col}_quarter'] / 4)
+        df[f'{date_col}_quarter_cos'] = np.cos(2 * np.pi * df[f'{date_col}_quarter'] / 4)
+        
+    df.drop(columns = ['largest_transaction_date_month','largest_transaction_date_day','largest_transaction_date_day_of_week',\
+                       'largest_transaction_date_quarter', 'last_transaction_date_month', 'last_transaction_date_day',\
+                       'last_transaction_date_day_of_week', 'last_transaction_date_quarter', 'first_transaction_date_month',\
+                       'first_transaction_date_day', 'first_transaction_date_day_of_week', 'first_transaction_date_quarter',\
+                       'first_transaction_date', 'last_transaction_date', 'largest_transaction_date'], inplace=True)
+
